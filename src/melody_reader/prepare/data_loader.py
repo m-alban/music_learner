@@ -42,10 +42,11 @@ class DataLoader():
     self.image_height = image_height
     configs = utils.load_configs()
     primus_path = configs['primus_dataset_path']
-    packages = ['package_aa', 'package_ab']
-    packages = [os.path.join(primus_path, p) for p in packages]
-    package_samples = [os.listdir(p) for p in packages]
-    sample_paths = [*package_samples[0], *package_samples[1]]
+    sample_paths = []
+    # get paths to lowest directories
+    for root, dirs, files in os.walk(primus_path):
+        if not dirs:
+            sample_paths.append(root)
     sample_paths = random.Random(seed).shuffle(sample_paths)
     train_index = int(len(sample_paths) * train_proportion)
     self.train_set = sample_paths[:train_index]
