@@ -4,6 +4,36 @@ import json
 import os
 import pickle
 
+from typing import List
+
+SEQUENCE_DATA_PATH = os.path.join(
+    utils.PROJECT_ROOT,
+    'src',
+    'melody_reader',
+    'prepare',
+    'data',
+    'sequence_data.json'
+)
+
+
+def load_alphabet() -> List[str]:
+    """ Load the semantic representation alphabet, first saving if necessary.
+    """
+    if not os.path.exists(SEQUENCE_DATA_PATH):
+        save_alphabet()
+    with open(SEQUENCE_DATA_PATH, 'r') as f:
+        sequence_data = json.load(f)
+    return sequence_data['alphabet']
+        
+def max_sequence_length() -> int:
+    """ Get the max sequnce length of semantic representations, first saving if necessary. 
+    """
+    if not os.path.exists(SEQUENCE_DATA_PATH):
+        save_alphabet()
+    with open(SEQUENCE_DATA_PATH, 'r') as f:
+        sequence_data = json.load(f)
+    return sequence_data['max_sequence']
+
 def save_alphabet():
     """ Generate the alphabet of the semantic representations of the Primus
     dataset.
@@ -40,13 +70,5 @@ def save_alphabet():
         'alphabet': list(alphabet),
         'max_sequence': max_sequence
     }
-    write_path = os.path.join(
-        utils.PROJECT_ROOT,
-        'src',
-        'melody_reader',
-        'prepare',
-        'data',
-        'sequence_data.json'
-    )
-    with open(write_path, 'w') as f:
+    with open(SEQUENCE_DATA_PATH, 'w') as f:
         json.dump(sequence_data, f, indent = 4)
