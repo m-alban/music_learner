@@ -1,93 +1,158 @@
 import src.utils as utils
+from src.melody_reader import prepare
 
+import os
 import random
 import tensorflow as tf
 
-from tensorflow.python.framework.ops import EagerTensor
-
-def load_image(image_path: str) -> EagerTensor:
-    image = tf.keras.preprocessing.image.load_img(image_path)
-    image_array = tf.keras.preprocessing.image.img_to_array(image)
-    height = image_array.shape[0]
-    width = image_array.shape[1]
-    # resize to height of 128 per paper
-    #TODO: magic constant...
-    resize_ratio = 128/height
-    new_width = int(resize_ratio*width)
-    tf.image.resize(image, [128, new_width], preserve_aspect_ratio = True)
+from tensorflow.python.data.ops.dataset_ops import ParallelMapDataset
 
 class DataLoader():
     """ A class for loading and preparing data.
 
     Attributes:
-        train_set: List[str], paths to train sample directories.
+        image_height: tensorflow.constant, new image height
         test_set: List[str], paths to test sample directories. 
+        train_set: List[str], paths to train sample directories.
         val_set: List[str], paths to validation sample directories. 
+        word_index: StaticVocabularyTable, maps a word to its index 
+            in the semantic alphabet.
+        word_lookup: Dict[int], maps an index to its corresponding word.
     """
 
     def __init__(
         self,
         image_height: int,
         train_proportion: float,
-        seed: int
-    )
-    """
-    Args:
-        image_height: The height to which the image will be resized
-        train_proportion: the proportion of the primus dataset for training.
-            The rest is split for test/val.
-        seed:
+        seed: int) -> None:
+        """
+        Args:
+            image_height: The height to which the image will be resized
+            train_proportion: the proportion of the primus dataset for training.
+                The rest is split for test/val.
+            seed: For reproducibility of train/test/val split.
+        """
+        # semantic word to integer mapping
+        alphabet = prepare.load_alphabet()
+        word_index = {}
+        for idx, word in enumerate(alphabet):
+            word_index[word] = idx
+        index_vector = tf.constant(list(word_index.values()), dtype=tf.int64)
+        word_vector = tf.constant(list(word_index.keys()))
+        word_table_init = tf.lookup.KeyValueTensorInitializer(
+            keys = word_vector,
+            values = index_vector
+        )
+        self.word_index = tf.lookup.StaticVocabularyTable(
+            word_table_init,
+            num_oov_buckets = 1
+        )
+        word_lookup_init = tf.lookup.KeyValueTensorInitializer(
+            keys = index_vector,
+            values = word_vector
+        )
+        self.word_lookup = tf.lookup.StaticHashTable(
+            word_lookup_init,
+            default_value = ''
+        )
+        self.image_height = tf.constant(image_height)
+        configs = utils.load_configs()
+        # Load sample paths
+        primus_path = configs['primus_dataset_path']
+        sample_paths = prepare.load_sample_paths()
+        sample_paths = [os.path.join(primus_path, s) for s in sample_paths]
+        # Shuffle and partition
+        random.Random(seed).shuffle(sample_paths)
+        train_index = int(len(sample_paths) * train_proportion)
+        self.train_set = sample_paths[:train_index]
+        holdout_set = sample_paths[train_index:]
+        test_index = int(len(holdout_set)/2)
+        self.test_set = holdout_set[:test_index]
+        self.val_set = holdout_set[test_index:]
 
-    """
-    self.image_height = image_height
-    configs = utils.load_configs()
-    primus_path = configs['primus_dataset_path']
-    sample_paths = []
-    # get paths to lowest directories
-    for root, dirs, files in os.walk(primus_path):
-        if not dirs:
-            sample_paths.append(root)
-    sample_paths = random.Random(seed).shuffle(sample_paths)
-    train_index = int(len(sample_paths) * train_proportion)
-    self.train_set = sample_paths[:train_index]
-    holdout_set = sample_paths[train_index:]
-    test_index = int(len(holdout_set)/2)
-    self.test_set = holdout_set[:test_index]
-    self.val_set = holdout_set[test_index:]
+    def load_partition(self, partition: str) -> ParallelMapDataset:
+        """ Load a partition of the data, applying all preprocessing.
+
+        Args:
+            partiton: 'train', 'test', 'val'.
+        
+        Returns:
+            A tensorflow mapped dataset.
+
+        Raises:
+            ValueError: If the partition argument is not in
+                {'train', 'test', 'val'}
+        """
+        if partition == 'train':
+            samples = self.test_set
+        elif partition == 'test':
+            samples = self.test_set
+        elif partition == 'val':
+            samples = self.val_set
+        else:
+            raise ValueError("Load partition should be 'train', 'test', 'val'")
+        #TODO: remember to remove slicing
+        images = [self.image_path(s) for s in samples][:32]
+        dataset = tf.data.Dataset.from_tensor_slices(images)
+        dataset = dataset.map(
+            self.image_preprocess, 
+            num_parallel_calls = tf.data.experimental.AUTOTUNE)
+        dataset = dataset.padded_batch(batch_size = 16, drop_remainder=False)
+        return dataset
 
     @tf.function
-    def read_image(self, image_path):
-        image = tf.io.read_file(image_path)
-        image = tf.image.decode_image(image, channels = 1, dtype = tf.float32)
-        return image
-
-    @tf.function
-    def resize(self, image):
-        height = image_array.shape[0]
-        width = image_array.shape[1]
-        # resize to height of 128 per paper
-        #TODO: magic constant...
-        resize_ratio = self.image_height/height
-        new_width = int(resize_ratio*width)
-        tf.image.resize(image, [self.image_height, new_width], preserve_aspect_ratio = True)
-
-    @tf.function
-    def normalize(self, image):
+    def image_normalize(self, image: tf.Tensor) -> tf.Tensor:
+        """ Normalize pixels in the image."""
         pixel_min = tf.reduce_min(image)
         pixel_range = tf.reduce_max(image) - pixel_min
         image = (image - pixel_min)/pixel_range
         return image
 
+    def image_path(self, sample_path: str) -> str:
+        """Convert a sample path to a path to the corresponding image."""
+        image_name = os.path.basename(sample_path) + '.png'
+        return os.path.join(sample_path, image_name)
+
     @tf.function
-    def preprocess(self, image_path):
-        image = self.read_image(image_path)
-        image = self.resize(image)
-        image = self.normalize(image)
+    def image_preprocess(self, image_path: str) -> tf.Tensor:
+        """Load and preprocess image."""
+        image = self.image_read(image_path)
+        image = self.image_resize(image)
+        image = self.image_normalize(image)
         return image
 
-    def load_train(self):
-        dataset = tf.data.Dataset.from_tensor_slices(self.train_set)
-        dataset = dataset.map(
-            self.preprocess, 
-            num_parallel_calls = tf.data.experimental.AUTOTUNE)
-        dataset = dataset.batch(batch_size = 128)
+    @tf.function
+    def image_read(self, image_path: str) -> tf.Tensor:
+        """Read the image at the given path."""
+        image = tf.io.read_file(image_path)
+        image = tf.image.decode_png(image, channels = 1, dtype = tf.uint8)
+        return image
+
+    @tf.function
+    def image_resize(self, image: tf.Tensor) -> tf.Tensor:
+        """Resize image to fixed height with proportional width."""
+        # TODO slicing leads to autograph issues, with gast 0.4.0
+        # suggested downgrade to 0.3.3, not done yet
+        height = tf.shape(image)[0]
+        #cast for multiplication with ratio
+        width = tf.cast(tf.shape(image)[1], tf.float64)
+        resize_ratio = self.image_height/height
+        new_width = tf.cast(resize_ratio*width, tf.int32)
+        resized = tf.image.resize(
+            image, 
+            [self.image_height, new_width], 
+            preserve_aspect_ratio = True
+        )
+        return resized
+
+    def sequence_load(self, sequence_path: str) -> tf.Tensor:
+        """Load the label sequence"""
+        pass
+        
+
+    def sequence_path(self, sample_path: str) -> str:
+        """Convert a sample path to a path to the corresponding 
+        semantic representation.
+        """
+        sequence_name = os.path.basename(sample_path) + '.semantic'
+        return os.path.join(sample_path, sequence_name)
