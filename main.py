@@ -1,5 +1,7 @@
 import src.melody_reader.prepare as reader_prep
 
+import tensorflow as tf
+
 def melody_reader():
     reader_prep.process_data()
     alphabet = reader_prep.load_alphabet()
@@ -14,8 +16,12 @@ def test_data_loader():
     train_images = loader.load_partition('train')
     #print(type(train_images))
     #s = set([])
-    for elem in train_images:
-        print(elem)
+    for image, seq, seq_len in train_images:
+        print(image.shape)
+        print(seq.shape)
+        print(seq_len.shape)
+        print(tf.reduce_max(seq_len))
+        print(seq_len)
         #print(elem)
         #s.add(elem.shape[1])
     #print(len(s)) # 1559, use ragged tensors

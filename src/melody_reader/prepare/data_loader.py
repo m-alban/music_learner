@@ -15,9 +15,10 @@ class DataLoader():
         test_set: List[str], paths to test sample directories. 
         train_set: List[str], paths to train sample directories.
         val_set: List[str], paths to validation sample directories. 
-        word_index: StaticVocabularyTable, maps a word to its index 
+        word_index: tf.lookup.StaticHashTable, maps a word to its index
             in the semantic alphabet.
-        word_lookup: Dict[int], maps an index to its corresponding word.
+        word_lookup: tf.lookup.StaticHashTable, maps an index 
+            to its corresponding word.
     """
 
     def __init__(
@@ -37,15 +38,15 @@ class DataLoader():
         word_index = {}
         for idx, word in enumerate(alphabet):
             word_index[word] = idx
-        index_vector = tf.constant(list(word_index.values()), dtype=tf.int64)
+        index_vector = tf.constant(list(word_index.values()), dtype=tf.int32)
         word_vector = tf.constant(list(word_index.keys()))
         word_table_init = tf.lookup.KeyValueTensorInitializer(
             keys = word_vector,
             values = index_vector
         )
-        self.word_index = tf.lookup.StaticVocabularyTable(
+        self.word_index = tf.lookup.StaticHashTable(
             word_table_init,
-            num_oov_buckets = 1
+            default_value = -1
         )
         word_lookup_init = tf.lookup.KeyValueTensorInitializer(
             keys = index_vector,
@@ -92,12 +93,21 @@ class DataLoader():
         else:
             raise ValueError("Load partition should be 'train', 'test', 'val'")
         #TODO: remember to remove slicing
-        images = [self.image_path(s) for s in samples][:32]
-        dataset = tf.data.Dataset.from_tensor_slices(images)
+        images = [self.image_path(s) for s in samples][:64]
+        sequences = [self.sequence_path(s) for s in samples][:64]
+        dataset = tf.data.Dataset.from_tensor_slices((images, sequences))
         dataset = dataset.map(
-            self.image_preprocess, 
+            self.sample_preprocess, 
             num_parallel_calls = tf.data.experimental.AUTOTUNE)
-        dataset = dataset.padded_batch(batch_size = 16, drop_remainder=False)
+        dataset = dataset.padded_batch(
+            batch_size = 16, 
+            drop_remainder=False,
+            padded_shapes = (
+                [tf.get_static_value(self.image_height), None, 1],
+                [None], 
+                []),
+            padding_values = (0., -1, 0)
+        )
         return dataset
 
     @tf.function
@@ -144,11 +154,23 @@ class DataLoader():
             preserve_aspect_ratio = True
         )
         return resized
+   
+    @tf.function
+    def sample_preprocess(self, image_path, sequence_path):
+        """
+        """
+        image = self.image_preprocess(image_path)
+        sequence, sequence_length = self.sequence_load(sequence_path)
+        return image, sequence, sequence_length
 
+    @tf.function
     def sequence_load(self, sequence_path: str) -> tf.Tensor:
         """Load the label sequence"""
-        pass
-        
+        sequence = tf.io.read_file(sequence_path)
+        sequence = tf.strings.split(sequence)
+        indexed_sequence = tf.vectorized_map(lambda t: self.word_index[t], sequence)
+        sequence_length = tf.size(indexed_sequence, out_type=tf.dtypes.int32)
+        return indexed_sequence, sequence_length
 
     def sequence_path(self, sample_path: str) -> str:
         """Convert a sample path to a path to the corresponding 
