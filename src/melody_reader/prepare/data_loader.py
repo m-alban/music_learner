@@ -7,7 +7,7 @@ import tensorflow as tf
 
 from tensorflow.python.data.ops.dataset_ops import ParallelMapDataset
 
-class DataLoader():
+class DataLoader:
     """ A class for loading and preparing data.
 
     Attributes:
@@ -93,19 +93,21 @@ class DataLoader():
         else:
             raise ValueError("Load partition should be 'train', 'test', 'val'")
         #TODO: remember to remove slicing
-        images = [self.image_path(s) for s in samples][:64]
-        sequences = [self.sequence_path(s) for s in samples][:64]
+        images = [self.image_path(s) for s in samples]
+        sequences = [self.sequence_path(s) for s in samples]
         dataset = tf.data.Dataset.from_tensor_slices((images, sequences))
         dataset = dataset.map(
-            self.sample_preprocess, 
-            num_parallel_calls = tf.data.experimental.AUTOTUNE)
+            self.sample_preprocess) 
+        # TODO: the below line leads to core dump errors
+        #    num_parallel_calls = tf.data.experimental.AUTOTUNE)
         dataset = dataset.padded_batch(
             batch_size = 16, 
             drop_remainder=False,
             padded_shapes = (
                 [tf.get_static_value(self.image_height), None, 1],
                 [None], 
-                []),
+                []
+            ),
             padding_values = (0., -1, 0)
         )
         return dataset
@@ -168,9 +170,10 @@ class DataLoader():
         """Load the label sequence"""
         sequence = tf.io.read_file(sequence_path)
         sequence = tf.strings.split(sequence)
-        indexed_sequence = tf.vectorized_map(lambda t: self.word_index[t], sequence)
-        sequence_length = tf.size(indexed_sequence, out_type=tf.dtypes.int32)
-        return indexed_sequence, sequence_length
+        #TODO This is the line that causes issues with AUTOTUNE parallel calls
+        sequence = tf.vectorized_map(lambda t: self.word_index[t], sequence)
+        sequence_length = tf.size(sequence, out_type=tf.dtypes.int32)
+        return sequence, sequence_length
 
     def sequence_path(self, sample_path: str) -> str:
         """Convert a sample path to a path to the corresponding 
