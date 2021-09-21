@@ -16,32 +16,31 @@ class CRNN(tf.keras.Model):
         conv_1 = tf.keras.layers.Conv2D(
             filters = 32,
             kernel_size = 3, 
-            activation='relu', 
-            data_format = 'channels_last',
+            activation=tf.keras.layers.LeakyReLU(),
             input_shape=(128, None, 1)
         )
         conv_2 = tf.keras.layers.Conv2D(
             filters = 64,
             kernel_size = 3, 
-            activation='relu', 
+            activation=tf.keras.layers.LeakyReLU(),
             data_format = 'channels_last'
         )
         conv_3 = tf.keras.layers.Conv2D(
             filters = 128,
             kernel_size = 3, 
-            activation='relu', 
+            activation=tf.keras.layers.LeakyReLU(),
             data_format = 'channels_last'
         )
         conv_3 = tf.keras.layers.Conv2D(
             filters = 128,
             kernel_size = 3, 
-            activation='relu', 
+            activation=tf.keras.layers.LeakyReLU(),
             data_format = 'channels_last'
         )
         conv_4 = tf.keras.layers.Conv2D(
             filters = 256,
             kernel_size = 3, 
-            activation='relu', 
+            activation=tf.keras.layers.LeakyReLU(),
             data_format = 'channels_last'
         )
         max_pool = tf.keras.layers.MaxPooling2D(data_format='channels_last')
@@ -65,7 +64,7 @@ class CRNN(tf.keras.Model):
         self.rnn_block = tf.keras.Sequential(
             layers = [blstm_1, blstm_2]
         )
-        self.dense = tf.keras.layers.Dense(self.alphabet_size+1, activation='softmax') 
+        self.dense = tf.keras.layers.Dense(self.alphabet_size+1)#, activation='softmax') 
 
     def call(self, images: tf.Tensor, training: bool):
         """Pass images through conv, rnn, and dense blocks.
@@ -99,7 +98,6 @@ class CRNN(tf.keras.Model):
             compile_kwargs: arguments for tf.keras.Model.compile()
         """
         super().compile(**compile_kwargs)
-        self.optim = optimizer
         self.loss = tf.nn.ctc_loss
 
     def test_step(self, data):
@@ -114,11 +112,13 @@ class CRNN(tf.keras.Model):
             logits = logits,
             label_length = seq_lens,
             logit_length = logit_length,
-            blank_index = -1
+            blank_index = 0
         )
-        preds, _ = tf.nn.ctc_greedy_decoder(logits, logit_length)
-        unpacked_preds = tf.sparse.to_dense(preds[0])
-        return {'loss': loss}
+        preds, _ = tf.nn.ctc_greedy_decoder(logits, logit_length, blank_index=0)
+        preds = tf.sparse.to_dense(preds[0])
+        preds = tf.cast(preds, tf.int32)
+        self.compiled_metrics.update_state(sequences, preds)
+        return {m.name: m.result() for m in self.metrics}
 
 
     def train_step(self, data):
@@ -134,8 +134,9 @@ class CRNN(tf.keras.Model):
                 logits = logits, 
                 label_length = seq_lens, 
                 logit_length = logit_length,
-                blank_index = -1
+                blank_index = 0
             )
-        grads = tape.gradient(loss, self.trainable_weights)
-        self.optim.apply_gradients(zip(grads, self.trainable_weights))
+            loss = tf.reduce_mean(loss)
+        grads = tape.gradient(loss, self.trainable_variables)
+        self.optimizer.apply_gradients(zip(grads, self.trainable_variables))
         return {'loss': loss}

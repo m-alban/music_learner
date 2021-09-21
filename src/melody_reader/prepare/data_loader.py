@@ -37,7 +37,7 @@ class DataLoader:
         alphabet = prepare.load_alphabet()
         word_index = {}
         for idx, word in enumerate(alphabet):
-            word_index[word] = idx
+            word_index[word] = idx+1
         index_vector = tf.constant(list(word_index.values()), dtype=tf.int32)
         word_vector = tf.constant(list(word_index.keys()))
         word_table_init = tf.lookup.KeyValueTensorInitializer(
@@ -46,7 +46,7 @@ class DataLoader:
         )
         self.word_index = tf.lookup.StaticHashTable(
             word_table_init,
-            default_value = -1
+            default_value = 0
         )
         word_lookup_init = tf.lookup.KeyValueTensorInitializer(
             keys = index_vector,
@@ -101,7 +101,7 @@ class DataLoader:
         # TODO: the below line leads to core dump errors
         #    num_parallel_calls = tf.data.experimental.AUTOTUNE)
         dataset = dataset.padded_batch(
-            batch_size = 16, 
+            batch_size = 8, 
             drop_remainder=False,
             padded_shapes = (
                 [tf.get_static_value(self.image_height), None, 1],
