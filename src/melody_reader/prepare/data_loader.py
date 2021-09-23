@@ -25,14 +25,17 @@ class DataLoader:
         self,
         image_height: int,
         train_proportion: float,
+        batch_size: int,
         seed: int) -> None:
         """
         Args:
             image_height: The height to which the image will be resized
             train_proportion: the proportion of the primus dataset for training.
                 The rest is split for test/val.
+            batch_size: Batch size for any loaded partition.
             seed: For reproducibility of train/test/val split.
         """
+        self.batch_size = batch_size
         # semantic word to integer mapping
         alphabet = prepare.load_alphabet()
         word_index = {}
@@ -57,9 +60,8 @@ class DataLoader:
             default_value = ''
         )
         self.image_height = tf.constant(image_height)
-        configs = utils.load_configs()
         # Load sample paths
-        primus_path = configs['primus_dataset_path']
+        primus_path = utils.dataset_path('melody_reader')
         sample_paths = prepare.load_sample_paths()
         sample_paths = [os.path.join(primus_path, s) for s in sample_paths]
         # Shuffle and partition
@@ -92,7 +94,6 @@ class DataLoader:
             samples = self.val_set
         else:
             raise ValueError("Load partition should be 'train', 'test', 'val'")
-        #TODO: remember to remove slicing
         images = [self.image_path(s) for s in samples]
         sequences = [self.sequence_path(s) for s in samples]
         dataset = tf.data.Dataset.from_tensor_slices((images, sequences))
@@ -101,7 +102,7 @@ class DataLoader:
         # TODO: the below line leads to core dump errors
         #    num_parallel_calls = tf.data.experimental.AUTOTUNE)
         dataset = dataset.padded_batch(
-            batch_size = 8, 
+            batch_size = self.batch_size, 
             drop_remainder=False,
             padded_shapes = (
                 [tf.get_static_value(self.image_height), None, 1],
@@ -135,7 +136,11 @@ class DataLoader:
 
     @tf.function
     def image_read(self, image_path: str) -> tf.Tensor:
-        """Read the image at the given path."""
+        """Read the image at the given path.
+
+        Args:
+            image_path: path to the .png file for the sample.
+        """
         image = tf.io.read_file(image_path)
         image = tf.image.decode_png(image, channels = 1, dtype = tf.uint8)
         return image
@@ -158,8 +163,12 @@ class DataLoader:
         return resized
    
     @tf.function
-    def sample_preprocess(self, image_path, sequence_path):
-        """
+    def sample_preprocess(self, image_path: str, sequence_path: str):
+        """ Read and process image and sequence data.
+
+        Args:
+            image_path: path to the .png file of the sample.
+            sequence_path: path to the .semantic file of the sample.
         """
         image = self.image_preprocess(image_path)
         sequence, sequence_length = self.sequence_load(sequence_path)
@@ -167,7 +176,11 @@ class DataLoader:
 
     @tf.function
     def sequence_load(self, sequence_path: str) -> tf.Tensor:
-        """Load the label sequence"""
+        """Load the label sequence
+
+        Args:
+            sequence_path: path to the .semantic file for the sample.
+        """
         sequence = tf.io.read_file(sequence_path)
         sequence = tf.strings.split(sequence)
         #TODO This is the line that causes issues with AUTOTUNE parallel calls
@@ -178,6 +191,10 @@ class DataLoader:
     def sequence_path(self, sample_path: str) -> str:
         """Convert a sample path to a path to the corresponding 
         semantic representation.
+
+        Args:
+            sample_path: full path to sample directory, 
+                e.g. /path/to/primus/package_aa/000051650-1_1_1
         """
         sequence_name = os.path.basename(sample_path) + '.semantic'
         return os.path.join(sample_path, sequence_name)

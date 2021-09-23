@@ -6,6 +6,7 @@ import pickle
 
 from typing import List
 
+# used to save and load stored sequence data, e.g. alphabet
 SEQUENCE_DATA_PATH = os.path.join(
     utils.PROJECT_ROOT,
     'src',
@@ -14,7 +15,6 @@ SEQUENCE_DATA_PATH = os.path.join(
     'data',
     'sequence_data.json'
 )
-
 
 def load_alphabet() -> List[str]:
     """ Load the semantic representation alphabet, first saving if necessary."""
@@ -58,8 +58,7 @@ def process_data() -> None:
     with keys 'alphabet', 'max_sequence', and 'sample_paths'
     """
     print('Preparing primus alphabet...')
-    configs = utils.load_configs()
-    primus_path = configs['primus_dataset_path']
+    primus_path = utils.dataset_path('melody_reader')
     alphabet = set([])
     # max sequence length needed for crnn
     max_sequence = 0

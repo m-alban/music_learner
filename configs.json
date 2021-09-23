@@ -1,3 +1,15 @@
 {
-    "primus_dataset_path": "/path/to/primus/dataset"
+    "melody_reader": {
+        "dataset_path": "/path/to/primus/dataset",
+        "train_configs": {
+            "learning_rate": 0.01,
+            "epochs": 30
+        },
+        "loader_configs": {
+            "image_height": 128,
+            "train_proportion": 0.7,
+            "batch_size": 8,
+            "seed": 42
+        }
+    }
 }

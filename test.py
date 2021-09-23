@@ -1,10 +1,12 @@
+import src.utils as utils
 import src.melody_reader.prepare as reader_prep
 from src.melody_reader.model import CRNN
 from src.melody_reader.metrics import SequenceAccuracy
 
 import tensorflow as tf
 
-def melody_reader():
+def data_prep():
+    print('testing data prep')
     reader_prep.process_data()
     alphabet = reader_prep.load_alphabet()
     max_sequence_length = reader_prep.max_sequence_length()
@@ -14,8 +16,10 @@ def melody_reader():
     print(len(sample_paths))
 
 def test_data_loader():
+    print('testing data loader')
     tf.executing_eagerly()
-    loader = reader_prep.DataLoader(128, 0.7, 42)
+    loader_kwargs = utils.loader_configs('melody_reader')
+    loader = reader_prep.DataLoader(**loader_kwargs)
     dataset = loader.load_partition('train')
     for image, seq, seq_len in dataset:
         pass
@@ -27,8 +31,10 @@ def test_data_loader():
         #print(elem)
 
 def test_model():
-    #tf.config.experimental.set_memory_growth()
-    loader = reader_prep.DataLoader(128, 0.7, 42)
+    print('testing model train')
+    component = 'melody_reader'
+    loader_kwargs = utils.loader_configs(component)
+    loader = reader_prep.DataLoader(**loader_kwargs)
     alphabet_size = loader.word_lookup.size()
     train_data = loader.load_partition('train')
     train_data = train_data.prefetch(tf.data.experimental.AUTOTUNE)
@@ -37,14 +43,16 @@ def test_model():
     model = CRNN(alphabet_size)
     # TODO: run_eagerly is on because otherwise getting iterator tensors
     # in model.fit
+    train_configs = utils.train_configs(component)
+    optim = tf.keras.optimizers.Adam(learning_rate=train_configs['learning_rate']),
     model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001),
-        run_eagerly=True,
+        optimizer = optim,
+        run_eagerly = True,
         metrics = SequenceAccuracy()
     )
     model.fit(train_data,
               validation_data=val_data, 
-              epochs=10, 
+              epochs=train_configs['epochs'], 
               steps_per_epoch=13152/8)
     #for image, sequence, seq_len in dataset:
     #    print('##############')
@@ -56,14 +64,13 @@ def test_model():
     #    print('loss: ', loss)
 
 def main():
-    #melody_reader()
-    #test_data_loader()
+    data_prep()
     physical_devices = tf.config.list_physical_devices('GPU')
     for device in physical_devices:
         tf.config.experimental.set_memory_growth(device, True)
     with tf.device('/gpu:0'):
+        test_data_loader()
         test_model()
-        #test_data_loader()
 
 if __name__ == '__main__':
     main()

@@ -55,11 +55,11 @@ class CRNN(tf.keras.Model):
         # RNN block
         blstm_1 = tf.keras.layers.Bidirectional(
             tf.keras.layers.LSTM(256, return_sequences=True),
-            merge_mode = 'ave'
+#            merge_mode = 'ave'
         )
         blstm_2 = tf.keras.layers.Bidirectional(
            tf.keras.layers.LSTM(256, return_sequences=True),
-           merge_mode='ave'
+#           merge_mode='ave'
         )
         self.rnn_block = tf.keras.Sequential(
             layers = [blstm_1, blstm_2]
