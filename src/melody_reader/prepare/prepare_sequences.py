@@ -58,7 +58,8 @@ def process_data() -> None:
     with keys 'alphabet', 'max_sequence', and 'sample_paths'
     """
     print('Preparing primus alphabet...')
-    primus_path = utils.dataset_path('melody_reader')
+    configs = utils.Configs('melody_reader')
+    primus_path = configs.data_path
     alphabet = set([])
     # max sequence length needed for crnn
     max_sequence = 0

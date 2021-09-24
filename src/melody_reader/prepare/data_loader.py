@@ -61,7 +61,8 @@ class DataLoader:
         )
         self.image_height = tf.constant(image_height)
         # Load sample paths
-        primus_path = utils.dataset_path('melody_reader')
+        configs = utils.Configs('melody_reader')
+        primus_path = configs.data_path
         sample_paths = prepare.load_sample_paths()
         sample_paths = [os.path.join(primus_path, s) for s in sample_paths]
         # Shuffle and partition

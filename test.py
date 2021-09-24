@@ -18,11 +18,16 @@ def data_prep():
 def test_data_loader():
     print('testing data loader')
     tf.executing_eagerly()
-    loader_kwargs = utils.loader_configs('melody_reader')
+    configs = utils.Configs('melody_reader')
+    loader_kwargs = configs.loader
     loader = reader_prep.DataLoader(**loader_kwargs)
     dataset = loader.load_partition('train')
-    for image, seq, seq_len in dataset:
-        pass
+    print(dataset.__len__)
+    dataset = dataset.prefetch(tf.data.experimental.AUTOTUNE)
+    print(type(dataset))
+    #print(dataset.__len__)
+    #for image, seq, seq_len in dataset:
+    #    pass
     #    print(image.shape)
     #    print(seq.shape)
     #    print(seq_len.shape)
@@ -32,8 +37,8 @@ def test_data_loader():
 
 def test_model():
     print('testing model train')
-    component = 'melody_reader'
-    loader_kwargs = utils.loader_configs(component)
+    configs = utils.Configs('melody_reader')
+    loader_kwargs = configs.loader
     loader = reader_prep.DataLoader(**loader_kwargs)
     alphabet_size = loader.word_lookup.size()
     train_data = loader.load_partition('train')
@@ -43,17 +48,22 @@ def test_model():
     model = CRNN(alphabet_size)
     # TODO: run_eagerly is on because otherwise getting iterator tensors
     # in model.fit
-    train_configs = utils.train_configs(component)
-    optim = tf.keras.optimizers.Adam(learning_rate=train_configs['learning_rate']),
+    train_configs = configs.trainer
+    optim = tf.keras.optimizers.Adam(learning_rate = train_configs['learning_rate'])
     model.compile(
         optimizer = optim,
         run_eagerly = True,
         metrics = SequenceAccuracy()
     )
+    # dataset is a graph so can't get size from that
+    train_prop = loader_kwargs['train_proportion']
+    batch_size = loader_kwargs['batch_size']
+    steps_per_epoch = int(configs.num_samples*train_prop/batch_size)
+    print(steps_per_epoch)
     model.fit(train_data,
-              validation_data=val_data, 
-              epochs=train_configs['epochs'], 
-              steps_per_epoch=13152/8)
+        validation_data = val_data, 
+        epochs = train_configs['epochs'], 
+        steps_per_epoch = steps_per_epoch)
     #for image, sequence, seq_len in dataset:
     #    print('##############')
     #    out = model(image)
@@ -64,12 +74,22 @@ def test_model():
     #    print('loss: ', loss)
 
 def main():
-    data_prep()
-    physical_devices = tf.config.list_physical_devices('GPU')
-    for device in physical_devices:
+    #data_prep()
+    virtual=True
+    if virtual:
+        gpu = tf.config.list_physical_devices('GPU')[0]
+        tf.config.set_logical_device_configuration(
+            gpu,
+            [tf.config.LogicalDeviceConfiguration(memory_limit=5500)]
+        )
+        device = tf.config.list_logical_devices('GPU')[0]
+    else:
+        devices = tf.config.list_physical_devices('GPU')
+        device = devices[0]
         tf.config.experimental.set_memory_growth(device, True)
+    print(device)
     with tf.device('/gpu:0'):
-        test_data_loader()
+        #test_data_loader()
         test_model()
 
 if __name__ == '__main__':
