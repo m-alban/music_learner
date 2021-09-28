@@ -12,7 +12,6 @@ class Configs:
     Attributes:
         data_path: str, path to the dataset
         loader: Dict[str, Union[int, float]], the dataloader kwargs
-        num_samples: int, the number of samples in the dataset
         trainer: Dict[str, Union[int, float]], trainer configs
     """
     def __init__(self, component: str) -> None:
@@ -33,11 +32,3 @@ class Configs:
         self.data_path = component_configs['dataset_path']
         self.loader = component_configs['loader_configs']
         self.trainer = component_configs['train_configs']
-        if component == 'melody_reader':
-            packages = ['package_aa', 'package_ab']
-            packages = [os.path.join(self.data_path, p) for p in packages]
-            self.num_samples = 0
-            for p in packages:
-                self.num_samples += len(os.listdir(p))
-        else:
-            self.num_samples = -1

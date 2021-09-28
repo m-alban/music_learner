@@ -88,7 +88,7 @@ class DataLoader:
                 {'train', 'test', 'val'}
         """
         if partition == 'train':
-            samples = self.test_set
+            samples = self.train_set
         elif partition == 'test':
             samples = self.test_set
         elif partition == 'val':
