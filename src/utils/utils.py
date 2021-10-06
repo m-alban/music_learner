@@ -21,9 +21,9 @@ class Configs:
             component: Name of the project component.
         Raises:
             ValueError: if component is not in 
-                {'melody_reader', 'measure_finder'}
+                {'melody_reader', 'score_cleaner', 'staff_finder'}
         """
-        if component not in ['melody_reader', 'measure_finder']:
+        if component not in ['melody_reader', 'score_cleaner', 'staff_finder']:
             raise ValueError
         config_path = os.path.join(PROJECT_ROOT, 'configs.json')
         with open(config_path, 'r') as f:
