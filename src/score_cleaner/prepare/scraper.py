@@ -2,6 +2,7 @@ import src.utils as utils
 
 import bs4
 import os
+import pdf2image
 import requests
 import urllib
 
@@ -30,7 +31,18 @@ def download_scores():
         os.mkdir(images_path)
     for score_url in score_urls:
         response = requests.get(score_url)
-        score_file_name = score_url.split('/')[-1]
-        file_path = os.path.join(images_path, score_file_name)
-        with open(file_path, 'wb') as f:
-            f.write(response.content)
+        score_name = score_url.split('/')[-1][:-4]
+        score_dir = os.path.join(images_path, score_name)
+        os.mkdir(score_dir)
+        try:
+            pages = pdf2image.convert_from_bytes(response.content, 500)
+        except pdf2image.exceptions.PDFPageCountError:
+            log_path = ['src', 'score_cleaner', 'logs', 'download_errors.log']
+            err_log = os.path.join(utils.PROJECT_ROOT, *log_path)
+            with open(err_log, 'a+') as f:
+                f.write(score_name)
+            continue
+        for i, page in enumerate(pages):
+            file_path = os.path.join(score_dir, f'page_{i}.jpg')
+            page.save(file_path, 'JPEG')
+            

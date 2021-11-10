@@ -1,10 +1,10 @@
 __pycache__/
+saved_models/
+# intermediate data folders
+data/
+logs/
 
 test.py
 configs_backup.json
 swap_configs.py
 
-saved_models/
-
-# intermediate data folders
-data/

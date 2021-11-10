@@ -1,25 +1,32 @@
 {
-    "melody_reader": {
-        "dataset_path": "/path/to/primus/dataset",
-        "train_configs": {
-            "learning_rate": 0.001,
-            "epochs": 30
+    "project_components": {
+        "melody_reader": {
+            "dataset_path": "/path/to/primus/dataset",
+            "train_configs": {
+                "learning_rate": 0.001,
+                "epochs": 30
+            },
+            "loader_configs": {
+                "image_height": 128,
+                "train_proportion": 0.78,
+                "batch_size": 8,
+                "seed": 42
+            }
         },
-        "loader_configs": {
-            "image_height": 128,
-            "train_proportion": 0.78,
-            "batch_size": 8,
-            "seed": 42
+        "staff_finder": {
+            "dataset_path": "/path/to/muscima_pp/v2.0/data",
+            "train_configs": {},
+            "loader_configs": {}
+        },
+        "score_cleaner": {
+            "dataset_path": "path/to/weimar/dataset",
+            "train_configs": {},
+            "loader_configs": {}
         }
     },
-    "staff_finder": {
-        "dataset_path": "/path/to/muscima_pp/v2.0/data",
-        "train_configs": {},
-        "loader_configs": {}
-    },
-    "score_cleaner": {
-        "dataset_path": "path/to/weimar/dataset",
-        "train_configs": {},
-        "loader_configs": {}
+    "project_tools": {
+        "object_detection": {
+            "path": "path/to/object_detection/installation"
+        }
     }
 }

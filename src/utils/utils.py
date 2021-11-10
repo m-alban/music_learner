@@ -6,6 +6,17 @@ from typing import Dict, Union
 
 PROJECT_ROOT = pathlib.Path(__file__).absolute().parent.parent.parent
 
+def load_configs() -> Dict:
+    config_path = os.path.join(PROJECT_ROOT, 'configs.json')
+    with open(config_path, 'r') as f:
+        configs = json.load(f)
+    return configs
+
+def object_detection_path():
+    """TODO: maybe a better way...
+    """
+    return load_configs()['project_tools']['object_detection']['path']
+
 class Configs:
     """Class for delivering component configurations.
 
@@ -25,10 +36,8 @@ class Configs:
         """
         if component not in ['melody_reader', 'score_cleaner', 'staff_finder']:
             raise ValueError
-        config_path = os.path.join(PROJECT_ROOT, 'configs.json')
-        with open(config_path, 'r') as f:
-            configs = json.load(f)
-        component_configs = configs[component]
+        configs = load_configs()
+        component_configs = configs['project_components'][component]
         self.data_path = component_configs['dataset_path']
         self.loader = component_configs['loader_configs']
         self.trainer = component_configs['train_configs']
