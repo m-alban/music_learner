@@ -15,8 +15,13 @@
         },
         "staff_finder": {
             "dataset_path": "/path/to/muscima_pp/v2.0/data",
-            "train_configs": {},
-            "loader_configs": {}
+            "train_configs": {
+                "model": "faster_rcnn_resnet_50_v1_640x640"
+            },
+            "loader_configs": {
+                "image_height": 640,
+                "image_width": 640
+            }
         },
         "score_cleaner": {
             "dataset_path": "path/to/weimar/dataset",

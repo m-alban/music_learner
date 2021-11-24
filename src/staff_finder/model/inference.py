@@ -25,12 +25,12 @@ def detect_fn(image, model):
     """Detect staves in image."""
     image, shapes = model.preprocess(image)
     prediction_dict = model.predict(image, shapes)
-    detections = detection_model.postprocess(prediction_dict, shapes)
-    return detection
+    detections = model.postprocess(prediction_dict, shapes)
+    return detections
 
 @tf.function
 def image_read(image_path: str) -> tf.Tensor:
-    """Load the image at the given path
+    """Load the image at the given path as uint8.
 
     Args:
         image_path: path to the .png file to be loaded.
