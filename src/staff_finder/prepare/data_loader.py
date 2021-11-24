@@ -50,6 +50,7 @@ def xml_to_csv(annotations_path: str):
             else: # line_index == 4
                 next_box['ymax'] = ymin+height
                 next_box['xmax'] = xmin+width
+                height = next_box['ymax'] - next_box['ymin']
                 row = (
                     file_name,
                     width,
@@ -158,10 +159,14 @@ def write_dataset():
     test_set = image_groups[:test_count]
     train_set = image_groups[test_count:]
     od_path = utils.object_detection_path()
+    #TODO: setup requires copying in pretrained models so might not need the mkdir
     od_path = os.path.join(od_path, 'workspace', 'staff_finder')
     if not os.path.isdir(od_path):
         os.mkdir(od_path)
-    train_path = os.path.join(od_path, 'train.record')
-    test_path = os.path.join(od_path, 'test.record')
+    tf_annotations_path = os.path.join(od_path, 'annotations')
+    if not os.path.isdir(tf_annotations_path):
+        os.mkdir(tf_annotations_path)
+    train_path = os.path.join(tf_annotations_path, 'train.record')
+    test_path = os.path.join(tf_annotations_path, 'test.record')
     write_records(train_set, train_path, image_dir)
     write_records(test_set, test_path, image_dir)
