@@ -1,1 +1,2 @@
-from .inference import *
+from .models import *
+from .training import *

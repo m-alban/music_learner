@@ -1,10 +1,14 @@
 __pycache__/
+
+# logging and modeling
 saved_models/
 checkpoint/
+ckpt_bkp/
+lightning_logs/
 # intermediate data folders
 data/
 logs/
-
+# scratch work and private info
 test.py
 configs_backup.json
 swap_configs.py

@@ -1,164 +1,188 @@
 import src.utils as utils
+from src.staff_finder.prepare.transforms import SampleCompose, SampleToTensor, SampleRandomResizedCrop
 
+import albumentations as A
 import collections
 import glob
 import io
-from object_detection.utils import dataset_util
+import numpy as np
 import os
 import pandas as pd
 import pathlib
 from PIL import Image
+import pytorch_lightning as pl
 import random
-import tensorflow.compat.v1 as tf
+import torch
 import xml.etree.ElementTree as ET
 
-from typing import List
+from typing import List, Optional, Dict, Tuple
 
-def create_tf_example(image_group, image_dir):
-    """Creates a tf.train.Example for the group of boxes associated with the image
+class MuscimaDataLightning(pl.LightningDataModule):
+    """Lightning data module for training the staff finder model.
 
-    Args:
-        image_group: A named tuple whose fields are 'filename' and 'object', where tuple.object 
-            is a pandas dataframe with columns filename, width, height, class, xmin, ymin, xmax, ymax
-            indicating a box containing a staff.
+    The data module loads data from the path given in the staff finder 
+        section of the configs. The proportion of train data is passed 
+        in the constructor or loaded from configs.
+        The remaining data is split in half for test and validation data.
+        Data is transformed under one of
+        1) Gaussian blur, 2) glass blur, or 3) motioin blur, followed
+        by random scaling.
     """
-    # get image path from xml name
-    xml_name = image_group.filename
-    xml_name_parts = xml_name.split('_')
-    image_number = xml_name_parts[2].split('-')[1]
-    image_name = f'p0{image_number}.png'
-    image_path_list = [xml_name_parts[1].lower(), 'image', image_name]
-    image_path = os.path.join(image_dir, *image_path_list)
-    # read image
-    with tf.gfile.GFile(image_path, 'rb') as f:
-        encoded_jpg = f.read()
-    encoded_jpg_io = io.BytesIO(encoded_jpg)
-    image = Image.open(encoded_jpg_io)
-    width, height = image.size
-    # prepare data for tfrecord write
-    filename = image_group.filename.encode('utf8')
-    image_format = b'jpg'
-    xmins = []
-    xmaxs = []
-    ymins = []
-    ymaxs = []
-    classes_text = []
-    classes = []
+    def __init__(self, train_proportion: float = None) -> None:
+        """
+        Args: 
+            train_proportion: the proportion of data that will be used for the train dataset.
+        """
+        super().__init__()
+        configs = utils.Configs('staff_finder')
+        data_path = configs.data_path
+        if not train_proportion:
+            train_proportion = configs.loader['train_proportion']
+        self.train_proportion = train_proportion
+        annotation_dir = os.path.join(data_path, 'annotations')
+        self.annotation_files = glob.glob(os.path.join(annotation_dir, '*.xml'))
+        self.transforms = A.Compose([
+            A.OneOf([
+                A.GaussianBlur(blur_limit = (3, 11)),
+                A.GlassBlur(),
+                A.MotionBlur(blur_limit = (13, 15)),
+            ], p = 0.5),
+            #A.GaussNoise(10., 25.),
+            A.RandomScale(scale_limit=0.2),
+            A.pytorch.ToTensorV2(p=1.0)
+        ])
+        self.batch_size = configs.loader['batch_size']
+        self.collate_fn = lambda batch: tuple(zip(*batch))
+    
+    def create_loader(self, 
+        annotation_files: List[str], 
+        transforms, 
+        **loader_kwargs) -> torch.utils.data.DataLoader:
+        """Creates a DataLoader of MuscimaDataset for annotations.
 
-    for i, row in image_group.object.iterrows():
-        xmins.append(row['xmin'] / width)
-        xmaxs.append(row['xmax'] / width)
-        ymins.append(row['ymin'] / height)
-        ymaxs.append(row['ymax'] / height)
-        classes_text.append(row['class'].encode('utf8'))
-        classes.append(1) #TODO: only one class for this data, do we need a label?
+        Args:
+            annotation_files: The annotation files for the samples to be loaded.
+            transforms: the transforms to be applied to the images.
+            loader_kwargs: extra arguments for a pytorch DataLoader
+        Returns:
+            The constructed DataLoader.
+        """
+        dataset = MuscimaDataset(annotation_files, transforms)
+        loader = torch.utils.data.DataLoader(
+            dataset,
+            batch_size = self.batch_size,
+            num_workers = os.cpu_count() - 1,
+            collate_fn = self.collate_fn,
+            **loader_kwargs
+        )
+        return loader
 
-    tf_features = tf.train.Features(
-        feature={
-        'image/height': dataset_util.int64_feature(height),
-        'image/width': dataset_util.int64_feature(width),
-        'image/filename': dataset_util.bytes_feature(filename),
-        'image/source_id': dataset_util.bytes_feature(filename),
-        'image/encoded': dataset_util.bytes_feature(encoded_jpg),
-        'image/format': dataset_util.bytes_feature(image_format),
-        'image/object/bbox/xmin': dataset_util.float_list_feature(xmins),
-        'image/object/bbox/xmax': dataset_util.float_list_feature(xmaxs),
-        'image/object/bbox/ymin': dataset_util.float_list_feature(ymins),
-        'image/object/bbox/ymax': dataset_util.float_list_feature(ymaxs),
-        'image/object/class/text': dataset_util.bytes_list_feature(classes_text),
-        'image/object/class/label': dataset_util.int64_list_feature(classes),
-    })
-    tf_example = tf.train.Example(features=tf_features)
-    return tf_example
+    def setup(self, stage: Optional[str] = None) -> None:
+        """Splits self.annotation_files into train/test/validation sets.
+        """
+        random.Random(42).shuffle(self.annotation_files)
+        train_count = int(len(self.annotation_files)*self.train_proportion)
+        holdout_count = len(self.annotation_files) - train_count
+        test_count = int(holdout_count/2)
+        self.train_annotation_files = self.annotation_files[:train_count]
+        holdout_annotation_files = self.annotation_files[train_count:]
+        self.test_annotation_files = holdout_annotation_files[:test_count]
+        self.val_annotation_files = holdout_annotation_files[test_count:]
+   
+    def train_dataloader(self):
+        return self.create_loader(self.train_annotation_files, self.transforms, shuffle = True)
 
-def write_dataset():
-    """ Writes TFRecords of train and test dataset for staff recognition.
+    def test_dataloader(self):
+        return self.create_loader(self.test_annotation_files, SampleCompose([SampleToTensor()]))
 
-    Uses 85/15 train test split
+    def val_dataloader(self):
+        return self.create_loader(self.val_annotation_files, SampleCompose([SampleToTensor()]))
+        
+
+class MuscimaDataset(torch.utils.data.Dataset):
+    """Class for loading muscima images and annotations
     """
-    write_tf_images()
-    # use resized images in the object detection folder
-    configs = utils.Configs('staff_finder')
-    data_path = configs.data_path
-    annotations_dir = os.path.join(data_path, 'annotations')
-    annotation_df = xml_to_csv(annotations_dir)
-    # group annotations by image
-    grouped_df = annotation_df.groupby('filename')
-    data = collections.namedtuple('data', ['filename', 'object'])
-    image_groups = [
-            data(filename, grouped_df.get_group(x)) 
-            for filename, x in zip(grouped_df.groups.keys(), grouped_df.groups)]
-    random.Random(42).shuffle(image_groups)
-    test_count = int(len(image_groups)*0.15)
-    test_set = image_groups[:test_count]
-    train_set = image_groups[test_count:]
-    od_path = utils.object_detection_path()
-    #TODO: setup requires copying in pretrained models so might not need the mkdir
-    tf_annotations_path = os.path.join(od_path, 'workspace', 'staff_finder', 'annotations')
-    if not os.path.isdir(tf_annotations_path):
-        os.makedirs(tf_annotations_path)
-    train_path = os.path.join(tf_annotations_path, 'train.record')
-    test_path = os.path.join(tf_annotations_path, 'test.record')
-    image_dir = os.path.join(od_path, 'workspace', 'staff_finder', 'images')
-    write_records(train_set, train_path, image_dir)
-    write_records(test_set, test_path, image_dir)
+    def __init__(self, annotation_files: List[str], transforms=None):
+        """
+        Args:
+            annotation_files: the annotation files of the samples for the dataset.
+            transforms: transformations to be applied to the images.
+        """
+        self.transforms=transforms
+        configs = utils.Configs('staff_finder')
+        data_path = configs.data_path
+        self.image_dir = os.path.join(data_path, 'images')
+        annotation_df = xml_to_csv(annotation_files)
+        grouped_df = annotation_df.groupby('filename')
+        data = collections.namedtuple('data', ['filename', 'dataframe'])
+        self.image_groups = [
+            data(filename, grouped_df.get_group(x))
+            for filename, x in zip(grouped_df.groups.keys(), grouped_df.groups)
+        ]
 
-#TODO: for typing, would want a class inheriting from typing.NamedTuple
-def write_records(group_list, out_path, image_dir):
-    """ Write the tf examples in group_list to out_path
+    def __getitem__(self, idx: int):
+        group = self.image_groups[idx]
+        image_path_list = xml_name_to_image_path(group.filename)
+        image_path = os.path.join(self.image_dir, *image_path_list)
+        img = Image.open(image_path).convert('RGB')
+        boxes = []
+        labels = []
+        areas = []
+        iscrowd = []
+        for _, row in group.dataframe.iterrows():
+            xmin = row['xmin']
+            ymin = row['ymin']
+            xmax = xmin + row['width']
+            ymax = ymin + row['height']
+            area = row['height']*row['width']
+            areas.append(area)
+            boxes.append([xmin, ymin, xmax, ymax])
+            labels.append(class_to_label(row['class']))
+        iscrowd = torch.zeros((len(boxes)), dtype=torch.int64)
+        boxes = torch.as_tensor(boxes, dtype=torch.float32)
+        labels = torch.as_tensor(labels, dtype=torch.int64)
+        image_id = torch.tensor([idx])
+        areas = torch.as_tensor(areas, dtype=torch.float32)
+        target = {}
+        target['boxes'] = boxes
+        target['labels'] = labels
+        target['image_id'] = image_id
+        target['area'] = area
+        target['iscrowd'] = iscrowd
+        if self.transforms:
+            if isinstance(self.transforms, A.Compose):
+                img = np.array(img)/255.
+                img = self.transforms(image = img)
+                img = torch.as_tensor(img['image'], dtype=torch.float32)
+            else:
+                img, target = self.transforms(img, target)
+        return img, target
 
-    Args:
-        group_list: list with named tuples as elements, whose fields are 'filename' and 'object'
-        out_path: str, the path to where the examples will be written
-        image_dir: str, path to the directory containing images for the dataset
+    def __len__(self):
+        return len(self.image_groups)
+
+def class_to_label(class_name: str) -> int:
+    """Return numeric label for class name.
     """
-    with tf.python_io.TFRecordWriter(out_path) as tf_writer:
-        for group in group_list:
-            tf_example = create_tf_example(group, image_dir)
-            tf_writer.write(tf_example.SerializeToString())
+    #TODO: provide class lookup elsewhere. not needed now since one class.
+    classes = {'staff': 1}
+    if class_name in classes:
+        return classes[class_name]
+    else:
+        raise KeyError('Not a valid class name for box.')
 
-def write_tf_images():
-    """Resize images to the scale of the object detection model. 
-
-    Write images to the images folder in <object_detection_path>/staff_finder/images
-    """
-    configs = utils.Configs('staff_finder')
-    loader_configs = configs.loader
-    image_out_size = (loader_configs['image_width'], loader_configs['image_height'])
-    # setting up write destination
-    od_path = utils.object_detection_path()
-    #TODO: again, setup requires copying pretrained models so might not need the mkdir
-    out_image_dir = os.path.join(od_path, 'workspace', 'staff_finder', 'images')
-    # read original muscima data
-    configs = utils.Configs('staff_finder')
-    data_path = configs.data_path
-    image_dir = os.path.join(data_path, 'images')
-    glob_search = os.path.join(image_dir, '**', 'image', '*.png')
-    image_paths = glob.glob(glob_search)
-    for image_path in image_paths:
-        # create same subdirectories 
-        sub_path = image_path.split('images')[1]
-        sub_path_components = sub_path.split(os.path.sep)
-        out_path = os.path.join(out_image_dir, *sub_path_components)
-        out_dir = os.path.dirname(out_path)
-        if not os.path.isdir(out_dir):
-            os.makedirs(out_dir)
-        image = Image.open(image_path)
-        image = image.resize(image_out_size, resample = Image.BILINEAR)
-        image.save(out_path)
-
-def xml_to_csv(annotations_path: str):
+def xml_to_csv(annotation_files: List[str]) -> pd.DataFrame:
     """Iterates through all .xml files and extracts bounding box data into a single Pandas dataframe.
 
     Args:
-        annotations_path: <muscima_pp/v2.0>/annotations
+        annotation_files: Full paths to annotations to be loaded into csv.
 
     Returns:
-        Dataframe with columns 'filename', 'xmin', 'xmax', 'ymax' where each row gives a box for a staff.
+        Dataframe of rows corresponding to boxes around staves, with the following columns:
+        'filename', 'width', 'height', 'class', 'xmin', 'xmax', 'ymin', 'ymax' 
     """
-    annotations = glob.glob(os.path.join(annotations_path, '*.xml'))
     xml_list = []
-    for xml_file in annotations:
+    for xml_file in annotation_files:
         tree = ET.parse(xml_file)
         root = tree.getroot()
         file_name = root.attrib['document']
@@ -200,3 +224,17 @@ def xml_to_csv(annotations_path: str):
     xml_df = pd.DataFrame(xml_list, columns=columns)
     return xml_df
 
+def xml_name_to_image_path(xml_name: str) -> List[str]:
+    """Gets the relative path of the image corresponding to the given xml file.
+
+    Args:
+        The filename of the annotation.
+
+    Returns:
+        The path of the image relative to the images folder.
+    """
+    xml_name_parts = xml_name.split('_')
+    image_number = xml_name_parts[2].split('-')[1]
+    image_name = f'p0{image_number}.png'
+    image_path_list = [xml_name_parts[1].lower(), 'image', image_name]
+    return image_path_list
