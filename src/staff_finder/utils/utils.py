@@ -3,9 +3,10 @@ import src.staff_finder.model as staff_model
 
 import os
 import re
+from PIL import Image
+import torch
 
-from typing import Tuple
-
+from typing import Tuple, List
 
 def ckpt_sort_key(ckpt: str) -> Tuple[float, int]:
     """Returns a sort value for the given saved checkpoint file name.
@@ -30,20 +31,3 @@ def ckpt_sort_key(ckpt: str) -> Tuple[float, int]:
     map_match = re.search(r'val_map=\d*\.\d*', ckpt).group(0)
     map_val = float(''.join([c for c in map_match if c.isdigit() or c=='.']))
     return (map_val, epoch)
-
-def load_model() -> staff_model.StaffFasterRCNN:
-    """Loads the best staff finder model.
-
-    Raises:
-        FileNotFoundError: if no checkpoints have been saved to 
-            <project root>/src/staff_finder/model/checkpoint/
-    """
-    checkpoint_path = ['src', 'staff_finder', 'model', 'checkpoint']
-    checkpoint_dir = os.path.join(src_utils.PROJECT_ROOT, *checkpoint_path)
-    checkpoint_list = os.listdir(checkpoint_dir)
-    if not checkpoint_list:
-        raise FileNotFoundError('Staff finder: No checkpoints saved.')
-    checkpoint_list.sort(key = ckpt_sort_key, reverse = True)
-    checkpoint_path = os.path.join(checkpoint_dir, checkpoint_list[0])
-    model = staff_model.MuscimaLightning.load_from_checkpoint(checkpoint_path).model
-    return model

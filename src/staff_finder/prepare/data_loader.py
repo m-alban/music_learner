@@ -2,6 +2,7 @@ import src.utils as utils
 from src.staff_finder.prepare.transforms import SampleCompose, SampleToTensor, SampleRandomResizedCrop
 
 import albumentations as A
+from albumentations.pytorch import ToTensorV2
 import collections
 import glob
 import io
@@ -16,6 +17,9 @@ import torch
 import xml.etree.ElementTree as ET
 
 from typing import List, Optional, Dict, Tuple
+
+class_to_label = {'staff': 1}
+label_to_class = {v: k for k, v in class_to_label.items()}
 
 class MuscimaDataLightning(pl.LightningDataModule):
     """Lightning data module for training the staff finder model.
@@ -49,7 +53,7 @@ class MuscimaDataLightning(pl.LightningDataModule):
             ], p = 0.5),
             #A.GaussNoise(10., 25.),
             A.RandomScale(scale_limit=0.2),
-            A.pytorch.ToTensorV2(p=1.0)
+            ToTensorV2(p=1.0)
         ])
         self.batch_size = configs.loader['batch_size']
         self.collate_fn = lambda batch: tuple(zip(*batch))
@@ -161,15 +165,17 @@ class MuscimaDataset(torch.utils.data.Dataset):
     def __len__(self):
         return len(self.image_groups)
 
-def class_to_label(class_name: str) -> int:
-    """Return numeric label for class name.
-    """
-    #TODO: provide class lookup elsewhere. not needed now since one class.
-    classes = {'staff': 1}
-    if class_name in classes:
-        return classes[class_name]
-    else:
-        raise KeyError('Not a valid class name for box.')
+# def class_to_label(class_name: str) -> int:
+#     """Return numeric label for class name.
+#     """
+#     #TODO: provide class lookup elsewhere. not needed now since one class.
+#     classes = {'staff': 1}
+#     if class_name in classes:
+#         return classes[class_name]
+#     else:
+#         raise KeyError('Not a valid class name for box.')
+
+# def label_to_
 
 def xml_to_csv(annotation_files: List[str]) -> pd.DataFrame:
     """Iterates through all .xml files and extracts bounding box data into a single Pandas dataframe.
