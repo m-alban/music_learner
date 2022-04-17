@@ -4,18 +4,16 @@ import pathlib
 
 from typing import Dict, Union
 
-PROJECT_ROOT = pathlib.Path(__file__).absolute().parent.parent.parent
+def project_root() -> str:
+    """Returns the root to the project. 
+    """
+    return str(pathlib.Path(__file__).absolute().parent.parent.parent)
 
 def load_configs() -> Dict:
-    config_path = os.path.join(PROJECT_ROOT, 'configs.json')
+    config_path = os.path.join(project_root(), 'configs.json')
     with open(config_path, 'r') as f:
         configs = json.load(f)
     return configs
-
-def object_detection_path():
-    """TODO: maybe a better way...
-    """
-    return load_configs()['project_tools']['object_detection']['path']
 
 class Configs:
     """Class for delivering component configurations.

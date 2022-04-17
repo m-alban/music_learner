@@ -28,7 +28,7 @@ def train_model():
     val_data = val_data.prefetch(tf.data.experimental.AUTOTUNE)
     # model train setup
     checkpoint_path = ['src', 'melody_reader', 'model', 'saved_models']
-    checkpoint_dir = os.path.join(utils.PROJECT_ROOT, *checkpoint_path)
+    checkpoint_dir = os.path.join(utils.project_root(), *checkpoint_path)
     if not os.path.exists(checkpoint_dir):
         os.makedirs(checkpoint_dir)
     checkpoint_name = 'model-{epoch:02d}-{val_sequence_accuracy:.2f}.ckpt'

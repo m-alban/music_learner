@@ -141,7 +141,7 @@ class MuscimaDataset(torch.utils.data.Dataset):
             area = row['height']*row['width']
             areas.append(area)
             boxes.append([xmin, ymin, xmax, ymax])
-            labels.append(class_to_label(row['class']))
+            labels.append(class_to_label[row['class']])
         iscrowd = torch.zeros((len(boxes)), dtype=torch.int64)
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
         labels = torch.as_tensor(labels, dtype=torch.int64)
@@ -164,18 +164,6 @@ class MuscimaDataset(torch.utils.data.Dataset):
 
     def __len__(self):
         return len(self.image_groups)
-
-# def class_to_label(class_name: str) -> int:
-#     """Return numeric label for class name.
-#     """
-#     #TODO: provide class lookup elsewhere. not needed now since one class.
-#     classes = {'staff': 1}
-#     if class_name in classes:
-#         return classes[class_name]
-#     else:
-#         raise KeyError('Not a valid class name for box.')
-
-# def label_to_
 
 def xml_to_csv(annotation_files: List[str]) -> pd.DataFrame:
     """Iterates through all .xml files and extracts bounding box data into a single Pandas dataframe.

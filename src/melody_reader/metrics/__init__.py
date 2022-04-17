@@ -1,1 +1,3 @@
-from .metrics import *
+from .metrics import SequenceAccuracy
+
+__all__ = ['SequenceAccuracy']

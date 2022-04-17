@@ -8,7 +8,7 @@ from typing import List
 
 # used to save and load stored sequence data, e.g. alphabet
 SEQUENCE_DATA_PATH = os.path.join(
-    utils.PROJECT_ROOT,
+    utils.project_root(),
     'src',
     'melody_reader',
     'prepare',
