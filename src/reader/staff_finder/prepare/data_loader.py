@@ -1,5 +1,7 @@
 import src.utils as utils
-from src.staff_finder.prepare.transforms import SampleCompose, SampleToTensor, SampleRandomResizedCrop
+from src.reader.staff_finder.prepare.transforms import (
+    SampleCompose, SampleToTensor, SampleRandomResizedCrop
+)
 
 import albumentations as A
 from albumentations.pytorch import ToTensorV2

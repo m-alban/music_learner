@@ -10,7 +10,8 @@ from typing import List
 SEQUENCE_DATA_PATH = os.path.join(
     utils.project_root(),
     'src',
-    'melody_reader',
+    'reader',
+    'staff_reader'
     'prepare',
     'data',
     'sequence_data.json'
@@ -54,11 +55,11 @@ def process_data() -> None:
     and sample directory names in the format 
     '<package><os separator><sample name>'.
     Data is saved at 
-    <project root>/src/melody_reader/prepare/data/sequence_data.json,
+    <project root>/src/reader/staff_reader/prepare/data/sequence_data.json,
     with keys 'alphabet', 'max_sequence', and 'sample_paths'
     """
     print('Preparing primus alphabet...')
-    configs = utils.Configs('melody_reader')
+    configs = utils.Configs('staff_reader')
     primus_path = configs.data_path
     alphabet = set([])
     # max sequence length needed for crnn

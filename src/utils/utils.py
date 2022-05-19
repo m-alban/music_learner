@@ -30,9 +30,9 @@ class Configs:
             component: Name of the project component.
         Raises:
             ValueError: if component is not in 
-                {'melody_reader', 'score_cleaner', 'staff_finder'}
+                {'staff_reader', 'score_cleaner', 'staff_finder'}
         """
-        if component not in ['melody_reader', 'score_cleaner', 'staff_finder']:
+        if component not in ['staff_reader', 'score_cleaner', 'staff_finder']:
             raise ValueError
         configs = load_configs()
         component_configs = configs['project_components'][component]

@@ -1,6 +1,6 @@
 {
     "project_components": {
-        "melody_reader": {
+        "staff_reader": {
             "dataset_path": "/path/to/primus/dataset",
             "train_configs": {
                 "learning_rate": 0.001,

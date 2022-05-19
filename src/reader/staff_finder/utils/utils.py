@@ -1,5 +1,5 @@
 import src.utils as src_utils
-import src.staff_finder.model as staff_model
+import src.reader.staff_finder.model as staff_model
 
 import os
 import re

@@ -1,4 +1,4 @@
-from src.staff_finder.model import StaffFasterRCNN
+from src.reader.staff_finder.model import StaffFasterRCNN
 
 import torch
 from torch import optim

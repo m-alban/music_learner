@@ -1,4 +1,4 @@
-from src import staff_finder
+from src.reader import staff_finder
 import src.utils as src_utils
 
 import os
@@ -37,7 +37,7 @@ def load_model(device: str = 'cpu') -> staff_finder.model.StaffFasterRCNN:
         FileNotFoundError: if no checkpoints have been saved to 
             <project root>/src/staff_finder/model/checkpoint/
     """
-    checkpoint_path = ['src', 'staff_finder', 'model', 'checkpoint']
+    checkpoint_path = ['src', 'reader', 'staff_finder', 'model', 'checkpoint']
     checkpoint_dir = os.path.join(src_utils.project_root(), *checkpoint_path)
     checkpoint_list = os.listdir(checkpoint_dir)
     if not checkpoint_list:

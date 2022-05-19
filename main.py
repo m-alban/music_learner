@@ -1,8 +1,5 @@
-import src.melody_reader.prepare as reader_prep
-
-import tensorflow as tf
-
 def main():
+    return 0
 
 if __name__ == '__main__':
     main()

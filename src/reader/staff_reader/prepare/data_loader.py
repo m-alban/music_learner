@@ -1,5 +1,5 @@
 import src.utils as utils
-from src.melody_reader import prepare
+from src.reader.staff_reader import prepare
 
 import os
 import random
@@ -61,7 +61,7 @@ class DataLoader:
         )
         self.image_height = tf.constant(image_height)
         # Load sample paths
-        configs = utils.Configs('melody_reader')
+        configs = utils.Configs('staff_reader')
         primus_path = configs.data_path
         sample_paths = prepare.load_sample_paths()
         sample_paths = [os.path.join(primus_path, s) for s in sample_paths]
